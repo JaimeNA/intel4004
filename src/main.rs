@@ -1,12 +1,17 @@
+use std::{
+    io, 
+    io::BufRead,
+    fs::File,
+};
 
-// Intel 4004
+// Intel 4004(CPU)
 
 struct Intel4004 {
     pc:    u8,
     carry: bool, 
     acc:   u8,
     index: [u8; 16],      // Dynamic RAM cell array of 16 x 4 bits.
-    stack: [u16; 3],     // 3 x 12 bits array
+    stack: [u16; 3],      // 3 x 12 bits array
 }
   
 impl Intel4004 {
@@ -44,12 +49,26 @@ impl Intel4004 {
             0x1000 => self.jnc(op_code), // 2-word instruction
             0x2000 => self.fim(op_code), // 2-word instruction 
             0x2100 => self.src(op_code),
-            0x3000 => self.src(op_code),
-            _ => self.pc += 3
+            0x3000 => self.fin(op_code),
+            0x3100 => self.jin(op_code),
+            0x4000 => self.jun(op_code), // 2-word instruction
+            0x5000 => self.jms(op_code), // 2-word instruction
+            0x6000 => self.inc(op_code),
+            0x7000 => self.isz(op_code), // 2-word instruction
+            0x8000 => self.add(op_code),
+            0x9000 => self.sub(op_code),
+            0xA000 => self.ld(op_code),
+            0xB000 => self.xch(op_code),
+            0xC000 => self.bbl(op_code),
+            0xD000 => self.ldm(op_code),
+            _ => self.pc += 3            // TODO: handle illegal op codes
         }
     }
 
     // Instructions
+
+    // A1, A2, A3 cycles are used to request data from the ROM, then M1 and M2 cycles are used to send the data to the CPU. 
+    // Finally, the X1, X2 and X3 cycles are used to interpret and execute the instruction.
 
     // No operation.
     fn nop(&mut self) {
@@ -79,20 +98,121 @@ impl Intel4004 {
 
         self.pc += 1;
     }
+
+    // Fetch indirect from ROM. Send content of index register pair location 0 out as an address. Data fetched is placed in specied register pair.
+    fn fin(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 1;
+    }
+
+    // Jump indirect. Send content of specified register pair out as an address at A1 and A2 time in the Instruction Cyle. (?)
+    fn jin(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 1;
+    }
+
+    // Jump unconditional. To specified address.
+    fn jun(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 2;
+    }
+
+    // Jump to subroutine of specified ROM address, save onl address(Up 1 level in stack).
+    fn jms(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 2;
+    }
+
+    // Increment contect of specified register.
+    fn inc(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 1;
+    }
+
+    // Increment contect of specified register. Go to specified ROM address if result != 0, otherwise skip/
+    fn isz(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 2;
+    }
+
+    // Add contents of specified register to accumulator with carry.
+    fn add(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 1;
+    }
+
+    // Subtract contents of specified register to accumulator with borrow. 
+    fn sub(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 1;
+    }
+
+    // Load contents of specified register to accumulator.
+    fn ld(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 1;
+    }
+
+    // Exchange contents of specified index register and accumulator.
+    fn xch(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 1;
+    }
+
+    // Branch back (down 1 level in stack) and load specified data to accumulator.
+    fn bbl(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 1;
+    }
+
+    // Load specified data to accumulator
+    fn ldm(&mut self, op_code: u16) {
+
+        // TODO: internal magic
+
+        self.pc += 1;
+    }
 }
 
+// Intel 4001(ROM)
 
-
-// Intel 4004 registers 
-
-struct Registers {
-    pc:    u8,
-    carry: bool, 
-    acc:   u8,
-    index: [u8; 16],      // Dynamic RAM cell array of 16 x 4 bits.
-    stack: [u16; 3],     // 3 x 12 bits array
+struct Intel4001 {
+    rom: [u8; 256],      // 256 bytes
 }
 
+impl Intel4001 {
+    pub fn load_rom(filename: &str) {
+        //
+    }
+}
+
+// Intel 4002(RAM)
+
+struct Intel4002 {
+    ram: [u8; 80],      // 320 bits of 4 bit characterrs or 40 bytes
+}
 
 // Desassembler
 
@@ -124,14 +244,55 @@ fn print_cpu_state(cpu: &Intel4004) {
     
 }
 
+fn print_rom(rom: &Intel4001) {
+    println!("\nROM: ");
+
+    for inst in rom.rom {
+
+        if inst == 0x00 { // Break if the next word is empty
+            break;
+        }
+
+        println!("{:#02X}", inst);
+    }
+
+}
+
+// Assembler
+
+fn assemble_from_file(filename: &str) -> io::Result<Intel4001> {
+
+    let mut rom = Intel4001 { rom: [0x00; 256] };                    // Initialize an empty ROM
+    let mut rom_counter: u8 = 0;
+
+    // Load file
+    let file = File::open(filename)?;
+    let data = io::BufReader::new(file);
+
+    // Assemble it
+    for line in data.lines() {
+        let instruction: Vec<&str> = line?.split(' ').collect();     // Split the line into arguments
+
+        rom.rom[0] = instruction_to_hex(&instruction.clone());
+    }
+
+    Ok(rom)
+}
+
+fn instruction_to_hex(inst: Vec<&str>) -> u8{
+    6
+}
+
 // TODO: add ROM mudule(Intel 4001) and RAM module
 
-fn main() {
+fn main() -> io::Result<()>{
 
     let mut cpu = Intel4004::new();
 
     cpu.decode_op(0x1000);
     print_cpu_state(&cpu);
 
+    print_rom(&assemble_from_file("rom/RDn.s").unwrap());
 
+    Ok(())
 }
