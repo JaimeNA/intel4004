@@ -1,6 +1,6 @@
 use std::{
     io, 
-    io::BufRead,
+    io::Read,
     fs::File,
 };
 
@@ -10,8 +10,8 @@ struct Intel4004 {
     pc:    u8,
     carry: bool, 
     acc:   u8,
-    index: [u8; 16],      // Dynamic RAM cell array of 16 x 4 bits.
-    stack: [u16; 3],      // 3 x 12 bits array
+    index: [u8; 16],                                                 // Dynamic RAM cell array of 16 x 4 bits.
+    stack: [u16; 3],                                                 // 3 x 12 bits array
 }
   
 impl Intel4004 {
@@ -203,15 +203,25 @@ struct Intel4001 {
 }
 
 impl Intel4001 {
-    pub fn load_rom(filename: &str) {
-        //
+    pub fn new() -> Intel4001 {
+        Intel4001 {
+            rom: [0x00; 256]
+        }
+    }
+
+    pub fn load_rom(&mut self, filename: &str) {
+        let mut file=File::open(filename).unwrap();
+        let mut buf=[0u8;12];
+        file.read(&mut self.rom).unwrap();
+        println!("{:?}",self.rom);
+        // use file
     }
 }
 
 // Intel 4002(RAM)
 
 struct Intel4002 {
-    ram: [u8; 80],      // 320 bits of 4 bit characterrs or 40 bytes
+    ram: [u8; 80],                                                   // 320 bits of 4 bit characterrs or 40 bytes
 }
 
 // Desassembler
@@ -248,42 +258,10 @@ fn print_rom(rom: &Intel4001) {
     println!("\nROM: ");
 
     for inst in rom.rom {
-
-        if inst == 0x00 { // Break if the next word is empty
-            break;
-        }
-
         println!("{:#02X}", inst);
     }
 
 }
-
-// Assembler
-
-fn assemble_from_file(filename: &str) -> io::Result<Intel4001> {
-
-    let mut rom = Intel4001 { rom: [0x00; 256] };                    // Initialize an empty ROM
-    let mut rom_counter: u8 = 0;
-
-    // Load file
-    let file = File::open(filename)?;
-    let data = io::BufReader::new(file);
-
-    // Assemble it
-    for line in data.lines() {
-        let instruction: Vec<&str> = line?.split(' ').collect();     // Split the line into arguments
-
-        rom.rom[0] = instruction_to_hex(&instruction.clone());
-    }
-
-    Ok(rom)
-}
-
-fn instruction_to_hex(inst: Vec<&str>) -> u8{
-    6
-}
-
-// TODO: add ROM mudule(Intel 4001) and RAM module
 
 fn main() -> io::Result<()>{
 
@@ -292,7 +270,9 @@ fn main() -> io::Result<()>{
     cpu.decode_op(0x1000);
     print_cpu_state(&cpu);
 
-    print_rom(&assemble_from_file("rom/RDn.s").unwrap());
+    let rom = Intel4001::new();
+
+    rom.load_rom("rom/RDn");
 
     Ok(())
 }
