@@ -210,11 +210,8 @@ impl Intel4001 {
     }
 
     pub fn load_rom(&mut self, filename: &str) {
-        let mut file=File::open(filename).unwrap();
-        let mut buf=[0u8;12];
+        let mut file = File::open(filename).unwrap();
         file.read(&mut self.rom).unwrap();
-        println!("{:?}",self.rom);
-        // use file
     }
 }
 
@@ -229,7 +226,7 @@ struct Intel4002 {
 fn print_cpu_state(cpu: &Intel4004) {
 
     // Program Counter
-    println!("PC: {} ", cpu.pc);
+    println!("\nPC: {} ", cpu.pc);
 
     // Carry
     println!("\nCarry: {}", cpu.carry);
@@ -255,10 +252,22 @@ fn print_cpu_state(cpu: &Intel4004) {
 }
 
 fn print_rom(rom: &Intel4001) {
+
+    let mut i = 0;
+
     println!("\nROM: ");
 
+    println!("0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F");
+
     for inst in rom.rom {
-        println!("{:#02X}", inst);
+        print!("{:02X} ", inst);
+
+        i += 1;
+
+        if i == 16 {
+            println!("");
+            i = 0;
+        }
     }
 
 }
@@ -267,12 +276,13 @@ fn main() -> io::Result<()>{
 
     let mut cpu = Intel4004::new();
 
-    cpu.decode_op(0x1000);
-    print_cpu_state(&cpu);
-
-    let rom = Intel4001::new();
+    let mut rom = Intel4001::new();
 
     rom.load_rom("rom/RDn");
+    print_rom(&rom);
+
+    cpu.decode_op(rom.rom[cpu.pc as usize].into());
+    print_cpu_state(&cpu);
 
     Ok(())
 }
