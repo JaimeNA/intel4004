@@ -12,6 +12,8 @@ struct Intel4004 {
     acc:   u8,
     index: [u8; 16],                                                 // Dynamic RAM cell array of 16 x 4 bits.
     stack: [u16; 3],                                                 // 3 x 12 bits array
+    ram_addr: u8,
+    rom: Intel4001,                                                  // TODO: do an implementation of a bus or join the application together     
 }
   
 impl Intel4004 {
@@ -22,10 +24,14 @@ impl Intel4004 {
             acc: 0x00,
             index: [0x00; 16],
             stack: [0x00; 3],
+            ram_addr: 0x0,
+            rom: Intel4001::new(),
         }
     }
-
-    // TODO: Implement clock function
+  
+    pub fn clock(&mut self) {
+        self.decode_op(self.rom.fetch_u8(self.pc.into()));
+    }
     
     fn reset(&mut self) {
         *self = Intel4004 {
@@ -34,33 +40,36 @@ impl Intel4004 {
             acc: 0x00,
             index: [0x00; 16],
             stack: [0x00; 3],
+            ram_addr: 0x0,
+            rom: Intel4001::new(),
         };
     }
 
-    fn fetch_instruction() {
-
-    }
-
     // 1-word instructions take 1 instruction cycle while 2-word intructions take 2.
-    fn decode_op(&mut self, op_code: u16) {
-        match op_code{
+    fn decode_op(&mut self, op_code: u8) {
+        match op_code & 0xF0{
             // Machine instructions
-            0x0000 => self.nop()       ,
-            0x1000 => self.jnc(op_code), // 2-word instruction
-            0x2000 => self.fim(op_code), // 2-word instruction 
-            0x2100 => self.src(op_code),
-            0x3000 => self.fin(op_code),
-            0x3100 => self.jin(op_code),
-            0x4000 => self.jun(op_code), // 2-word instruction
-            0x5000 => self.jms(op_code), // 2-word instruction
-            0x6000 => self.inc(op_code),
-            0x7000 => self.isz(op_code), // 2-word instruction
-            0x8000 => self.add(op_code),
-            0x9000 => self.sub(op_code),
-            0xA000 => self.ld(op_code),
-            0xB000 => self.xch(op_code),
-            0xC000 => self.bbl(op_code),
-            0xD000 => self.ldm(op_code),
+            0x00 => self.nop()       ,
+            0x10 => self.jnc(op_code & 0x0F), // 2-word instruction
+            0x20 => {                  // Check last 4 bit to see which function to call 
+                if (op_code & 0x0F) % 2 == 0 {
+                    self.fim(op_code & 0x0F);
+                } else {
+                    self.src(op_code & 0x0F);
+                }
+            }, 
+            0x30 => self.fin(op_code & 0x0F),
+            0x31 => self.jin(op_code & 0x0F),
+            0x40 => self.jun(op_code & 0x0F), // 2-word instruction
+            0x50 => self.jms(op_code & 0x0F), // 2-word instruction
+            0x60 => self.inc(op_code & 0x0F),
+            0x70 => self.isz(op_code & 0x0F), // 2-word instruction
+            0x80 => self.add(op_code & 0x0F),
+            0x90 => self.sub(op_code & 0x0F),
+            0xA0 => self.ld(op_code & 0x0F),
+            0xB0 => self.xch(op_code & 0x0F),
+            0xC0 => self.bbl(op_code & 0x0F),
+            0xD0 => self.ldm(op_code & 0x0F),
             _ => self.pc += 3            // TODO: handle illegal op codes
         }
     }
@@ -76,7 +85,7 @@ impl Intel4004 {
     }
 
     // Jump to ROM address X if condition is true, otherwise skip.
-    fn jnc(&mut self, op_code: u16) {
+    fn jnc(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -84,23 +93,25 @@ impl Intel4004 {
     }
 
     // Fetch immediate from ROM data X to specified index register pair.
-    fn fim(&mut self, op_code: u16) {
+    fn fim(&mut self, opa: u8) {
 
-        // TODO: internal magic
+        self.pc += 1;
 
-        self.pc += 2;
-    }
-
-    // Send register control. Send the context of the specified index pair to ROM and RAM at set time.
-    fn src(&mut self, op_code: u16) {
-
-        // TODO: internal magic
+        self.index[((opa >> 1) * 2) as usize] = self.rom.fetch_u8(self.pc.into());
 
         self.pc += 1;
     }
 
+    // Send register control. Send the context of the specified index pair to ROM and RAM at set time.
+    fn src(&mut self, opa: u8) {
+
+        self.ram_addr = opa >> 1;
+        
+        self.pc += 1;
+    }
+
     // Fetch indirect from ROM. Send content of index register pair location 0 out as an address. Data fetched is placed in specied register pair.
-    fn fin(&mut self, op_code: u16) {
+    fn fin(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -108,7 +119,7 @@ impl Intel4004 {
     }
 
     // Jump indirect. Send content of specified register pair out as an address at A1 and A2 time in the Instruction Cyle. (?)
-    fn jin(&mut self, op_code: u16) {
+    fn jin(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -116,7 +127,7 @@ impl Intel4004 {
     }
 
     // Jump unconditional. To specified address.
-    fn jun(&mut self, op_code: u16) {
+    fn jun(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -124,7 +135,7 @@ impl Intel4004 {
     }
 
     // Jump to subroutine of specified ROM address, save onl address(Up 1 level in stack).
-    fn jms(&mut self, op_code: u16) {
+    fn jms(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -132,7 +143,7 @@ impl Intel4004 {
     }
 
     // Increment contect of specified register.
-    fn inc(&mut self, op_code: u16) {
+    fn inc(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -140,7 +151,7 @@ impl Intel4004 {
     }
 
     // Increment contect of specified register. Go to specified ROM address if result != 0, otherwise skip/
-    fn isz(&mut self, op_code: u16) {
+    fn isz(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -148,7 +159,7 @@ impl Intel4004 {
     }
 
     // Add contents of specified register to accumulator with carry.
-    fn add(&mut self, op_code: u16) {
+    fn add(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -156,7 +167,7 @@ impl Intel4004 {
     }
 
     // Subtract contents of specified register to accumulator with borrow. 
-    fn sub(&mut self, op_code: u16) {
+    fn sub(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -164,7 +175,7 @@ impl Intel4004 {
     }
 
     // Load contents of specified register to accumulator.
-    fn ld(&mut self, op_code: u16) {
+    fn ld(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -172,7 +183,7 @@ impl Intel4004 {
     }
 
     // Exchange contents of specified index register and accumulator.
-    fn xch(&mut self, op_code: u16) {
+    fn xch(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -180,7 +191,7 @@ impl Intel4004 {
     }
 
     // Branch back (down 1 level in stack) and load specified data to accumulator.
-    fn bbl(&mut self, op_code: u16) {
+    fn bbl(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -188,7 +199,7 @@ impl Intel4004 {
     }
 
     // Load specified data to accumulator
-    fn ldm(&mut self, op_code: u16) {
+    fn ldm(&mut self, opa: u8) {
 
         // TODO: internal magic
 
@@ -199,14 +210,18 @@ impl Intel4004 {
 // Intel 4001(ROM)
 
 struct Intel4001 {
-    rom: [u8; 256],      // 256 bytes
+    rom: [u8; 256],      // 256 bytes.
 }
 
 impl Intel4001 {
     pub fn new() -> Intel4001 {
         Intel4001 {
-            rom: [0x00; 256]
+            rom: [0x00; 256],
         }
+    }
+
+    pub fn fetch_u8(&self, addr: usize) -> u8{
+        self.rom[addr]
     }
 
     pub fn load_rom(&mut self, filename: &str) {
@@ -276,12 +291,12 @@ fn main() -> io::Result<()>{
 
     let mut cpu = Intel4004::new();
 
-    let mut rom = Intel4001::new();
+    cpu.rom.load_rom("rom/RDn");
 
-    rom.load_rom("rom/RDn");
-    print_rom(&rom);
+    cpu.clock();
+    cpu.clock();
 
-    cpu.decode_op(rom.rom[cpu.pc as usize].into());
+    print_rom(&cpu.rom);
     print_cpu_state(&cpu);
 
     Ok(())
