@@ -11,7 +11,7 @@ pub struct Intel4001 {
 }
 
 impl Intel4001 {
-    pub fn new() -> Intel4001 {
+    pub fn new() -> Self {
         Intel4001 {
             rom: [0x00; 256],
         }

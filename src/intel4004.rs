@@ -1,27 +1,66 @@
 use super::intel4001::Intel4001;
 
+// Stack
+
+struct Stack{                                                        // 3 x 12 bits array
+    addrs: [u16; 3],
+    sp: u8,                                                          // Stack Pointer
+}
+
+impl Stack {
+
+    pub fn new() -> Self {
+        Stack{
+            addrs: [0x00; 3],
+            sp: 0x00,
+        }
+    }
+
+    pub fn push(&mut self, addr: u16) {
+        self.addrs[self.sp as usize] = addr;
+
+        if self.sp < 3 {
+            self.sp += 1;
+        }
+    }
+
+    pub fn pop(&mut self) -> u16 {
+        let addr = self.addrs[self.sp as usize];
+        self.addrs[self.sp as usize] = 0x00;                                  // Reset stack level.
+
+        if self.sp > 0 {
+            self.sp -= 1;                                            // Down 1 level if the sp is not on level 0.
+        }
+
+        addr
+    }
+
+}
+
 // Intel 4004(CPU)
 
 pub struct Intel4004 {
-    pc:    u8,
+    pc:    u16,
     carry: bool, 
     acc:   u8,
     index: [u8; 16],                                                 // Dynamic RAM cell array of 16 x 4 bits.
-    stack: [u16; 3],                                                 // 3 x 12 bits array
+    stack: Stack,                                                 
     ram_addr: u8,
+    rom_addr: u8,
     signal: bool,
     pub rom: Intel4001,                                            
 }
-  
+
 impl Intel4004 {
-    pub fn new() -> Intel4004 {
+    pub fn new() -> Self {
         Intel4004 {
             pc: 0x00,
             carry: false,
             acc: 0x00,
             index: [0x00; 16],
-            stack: [0x00; 3],
+            stack: Stack::new(),
             ram_addr: 0x0,
+            rom_addr: 0x0,
             signal: false, 
             rom: Intel4001::new(),
         }
@@ -33,7 +72,7 @@ impl Intel4004 {
 
     // --- Getters and setters ---
 
-    pub fn get_pc(&self) -> u8 {
+    pub fn get_pc(&self) -> u16 {
         self.pc
     }
 
@@ -50,7 +89,7 @@ impl Intel4004 {
     }
 
     pub fn get_stack(&self) -> &[u16; 3] {
-        &self.stack
+        &self.stack.addrs
     }
 
     // --- Instructions ---
@@ -60,15 +99,15 @@ impl Intel4004 {
         match op_code & 0xF0{
             // Machine instructions
             0x00 => self.nop()       ,
-            0x10 => self.jcn(op_code & 0x0F), // 2-word instruction
-            0x20 => {                  // Check last 4 bit to see which function to call 
+            0x10 => self.jcn(op_code & 0x0F),  // 2-word instruction
+            0x20 => {                          // Check last 4 bit to see which function to call.
                 if (op_code & 0x0F) % 2 == 0 {
                     self.fim(op_code & 0x0F);
                 } else {
                     self.src(op_code & 0x0F);
                 }
             }, 
-            0x30 => {                  // Check last 4 bit to see which function to call 
+            0x30 => {                          // Check last 4 bit to see which function to call. 
                 if (op_code & 0x0F) % 2 == 0 {
                     self.fin(op_code & 0x0F);
                 } else {
@@ -85,7 +124,10 @@ impl Intel4004 {
             0xB0 => self.xch(op_code & 0x0F),
             0xC0 => self.bbl(op_code & 0x0F),
             0xD0 => self.ldm(op_code & 0x0F),
-            _ => self.pc += 1        
+            _ => {                            // Temporarly to test functions.
+                self.jms(0x00);
+                self.jms(0x02);
+            }     
         }
     }
 
@@ -99,18 +141,17 @@ impl Intel4004 {
 
     // Jump to ROM address X if condition is true, otherwise skip.
     fn jcn(&mut self, opa: u8) {
-
         let condition = opa & 0x0F;
 
-        let C1 = (condition & 0x8) >> 3;
-        let C2 = (condition & 0x4) >> 2;
-        let C3 = (condition & 0x2) >> 1;
-        let C4 = (condition & 0x1);
+        let c1 = (condition & 0x8) >> 3;
+        let c2 = (condition & 0x4) >> 2;
+        let c3 = (condition & 0x2) >> 1;
+        let c4 = condition & 0x1;
 
         self.pc += 1;
 
-        if C1 != 1 && ((self.acc == 0 && C2 == 1) || (self.carry && C3 == 1) || (self.signal && C4 == 1)) {
-            self.pc = self.rom.fetch_u8(self.pc.into());
+        if c1 != 1 && ((self.acc == 0 && c2 == 1) || (self.carry && c3 == 1) || (self.signal && c4 == 1)) {
+            self.pc = self.rom.fetch_u8(self.pc.into()) as u16;
         } else {
             self.pc += 1;
         }
@@ -121,7 +162,9 @@ impl Intel4004 {
 
         self.pc += 1;
 
-        self.index[((opa >> 1) * 2) as usize] = self.rom.fetch_u8(self.pc.into());
+        let rp = ((opa >> 1) * 2) as usize;
+
+        self.index[rp] = self.rom.fetch_u8(self.pc.into());
 
         self.pc += 1;
     }
@@ -137,33 +180,34 @@ impl Intel4004 {
     // Fetch indirect from ROM. Send content of index register pair location 0 out as an address. Data fetched is placed in specied register pair.
     fn fin(&mut self, opa: u8) {
 
-        // TODO: internal magic
+        let rp = ((opa >> 1) * 2) as usize;
+
+        self.index[rp] = self.rom.fetch_u8(self.index[0] as usize);
 
         self.pc += 1;
     }
 
-    // Jump indirect. Send content of specified register pair out as an address at A1 and A2 time in the Instruction Cyle. (?)
+    // Jump indirect. Send contents of register pair RRR out as an address at A1 and A2 time (ROM fetch cycles).
     fn jin(&mut self, opa: u8) {
+        let rp = ((opa >> 1) * 2) as usize;
 
-        // TODO: internal magic
+        self.rom_addr = self.index[rp];
 
         self.pc += 1;
     }
 
     // Jump unconditional. To specified address.
     fn jun(&mut self, opa: u8) {
+        self.pc += 1;
 
-        // TODO: internal magic
-
-        self.pc += 2;
+        self.pc = ((opa & 0x0F) as u16 * 256) + (self.rom.fetch_u8(self.pc.into()) as u16);          // Join the last 4 bits of OPA with the next 8 bits.
     }
 
     // Jump to subroutine of specified ROM address, save onl address(Up 1 level in stack).
     fn jms(&mut self, opa: u8) {
+        self.stack.push(self.pc);
 
-        // TODO: internal magic
-
-        self.pc += 2;
+        self.pc = ((opa & 0x0F) as u16 * 256) + (self.rom.fetch_u8(self.pc.into()) as u16);          // Join the last 4 bits of OPA with the next 8 bits.
     }
 
     // Increment contect of specified register.
