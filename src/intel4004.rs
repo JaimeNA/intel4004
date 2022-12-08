@@ -171,29 +171,25 @@ impl Intel4004 {
 
     // Send register control. Send the context of the specified index pair to ROM and RAM at set time.
     fn src(&mut self, opa: u8) {
+        self.pc += 1;
 
         self.ram_addr = opa >> 1;
-        
-        self.pc += 1;
     }
 
     // Fetch indirect from ROM. Send content of index register pair location 0 out as an address. Data fetched is placed in specied register pair.
     fn fin(&mut self, opa: u8) {
+        self.pc += 1;
 
         let rp = ((opa >> 1) * 2) as usize;
-
         self.index[rp] = self.rom.fetch_u8(self.index[0] as usize);
-
-        self.pc += 1;
     }
 
     // Jump indirect. Send contents of register pair RRR out as an address at A1 and A2 time (ROM fetch cycles).
     fn jin(&mut self, opa: u8) {
-        let rp = ((opa >> 1) * 2) as usize;
-
-        self.rom_addr = self.index[rp];
-
         self.pc += 1;
+
+        let rp = ((opa >> 1) * 2) as usize;
+        self.rom_addr = self.index[rp];
     }
 
     // Jump unconditional. To specified address.
@@ -212,18 +208,25 @@ impl Intel4004 {
 
     // Increment contect of specified register.
     fn inc(&mut self, opa: u8) {
-
-        // TODO: internal magic
-
         self.pc += 1;
+        
+        let reg_addr =(opa & 0x0F) as usize;
+        self.index[reg_addr] += 1;
     }
 
     // Increment contect of specified register. Go to specified ROM address if result != 0, otherwise skip/
     fn isz(&mut self, opa: u8) {
+        self.pc += 1;
 
-        // TODO: internal magic
+        let rom_addr = self.rom.fetch_u8(self.pc.into()) as u16;
+        let reg_addr =(opa & 0x0F) as usize;
 
-        self.pc += 2;
+        self.index[reg_addr] += 1;
+        if  self.index[reg_addr] != 0 {
+            self.pc = rom_addr;
+        } else {
+            self.pc += 1;
+        }
     }
 
     // Add contents of specified register to accumulator with carry.
