@@ -124,6 +124,25 @@ impl Intel4004 {
             0xB0 => self.xch(op_code & 0x0F),
             0xC0 => self.bbl(op_code & 0x0F),
             0xD0 => self.ldm(op_code & 0x0F),
+            // Input/Output and RAM instructions
+            0xE0 => match opcode & 0x0F {
+                0x00 => self.wrm(),
+                0x01 => self.wmp(),
+                0x02 => self.wrr(),
+                0x03 => self.wpm(),
+                0x04 => self.wr0(),
+                0x05 => self.wr1(),
+                0x06 => self.wr2(),
+                0x07 => self.wr3(),
+                0x08 => self.sbm(),
+                0x09 => self.rdm(),
+                0x0A => self.rdr(),
+                0x0B => self.adm(),
+                0x0C => self.rd0(),
+                0x0D => self.rd1(),
+                0x0E => self.rd2(),
+                0x0F => self.rd3(),
+            },
             _ => {                            // Temporarly to test functions.
                 self.stack.push(0x01);
                 self.bbl(0x2);
@@ -133,6 +152,8 @@ impl Intel4004 {
 
     // A1, A2, A3 cycles are used to request data from the ROM, then M1 and M2 cycles are used to send the data to the CPU. 
     // Finally, the X1, X2 and X3 cycles are used to interpret and execute the instruction.
+
+    // --- Machine instructions ---
 
     // No operation.
     fn nop(&mut self) {
@@ -291,4 +312,6 @@ impl Intel4004 {
 
         self.acc = opa & 0x0F;
     }
+
+    // --- Input/Output and RAM instructions ---
 }
