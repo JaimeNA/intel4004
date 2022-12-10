@@ -8,12 +8,14 @@ use std::{
 
 pub struct Intel4001 {
     pub rom: [u8; 256],      // 256 bytes.
+    pub io: u8,                  // 4 bits I/O port to route data in and out of the system.
 }
 
 impl Intel4001 {
     pub fn new() -> Self {
         Intel4001 {
             rom: [0x00; 256],
+            io: 0x00,
         }
     }
 

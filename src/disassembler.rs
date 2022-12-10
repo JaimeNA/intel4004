@@ -1,7 +1,8 @@
 use super::intel4001::Intel4001;
+use super::intel4002::Intel4002;
 use super::intel4004::Intel4004;
 
-// Desassembler
+// Disassembler
 
 pub fn print_cpu_state(cpu: &Intel4004) {
 
@@ -39,7 +40,6 @@ pub fn print_stack(stack: &[u16; 3]) {
 }
 
 pub fn print_rom(rom: &Intel4001) {
-
     let mut i = 0;
 
     println!("\nROM: ");
@@ -56,5 +56,23 @@ pub fn print_rom(rom: &Intel4001) {
             i = 0;
         }
     }
+}
 
+pub fn print_ram(ram: &Intel4002) {
+    let mut i = 0;
+
+    println!("\nRAM: ");
+
+    println!("0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F");
+
+    for inst in ram.ram {
+        print!("{:02X} ", inst);
+
+        i += 1;
+
+        if i == 16 {
+            println!("");
+            i = 0;
+        }
+    }
 }

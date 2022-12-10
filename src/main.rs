@@ -14,6 +14,7 @@ fn main() -> io::Result<()>{
     cpu.clock();
 
     print_rom(&cpu.rom);
+    print_ram(&cpu.ram);
     print_cpu_state(&cpu);
 
     Ok(())

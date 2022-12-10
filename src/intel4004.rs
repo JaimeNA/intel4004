@@ -1,4 +1,5 @@
 use super::intel4001::Intel4001;
+use super::intel4002::Intel4002;
 
 // Stack
 
@@ -44,11 +45,12 @@ pub struct Intel4004 {
     carry: bool, 
     acc:   u8,
     index: [u8; 16],                                                 // Dynamic RAM cell array of 16 x 4 bits.
-    stack: Stack,                                                 
-    ram_addr: u8,
-    rom_addr: u8,
+    stack: Stack,     
     signal: bool,
-    pub rom: Intel4001,                                            
+    ram_addrs: u8,
+    ram_status: u8,
+    pub rom: Intel4001,     
+    pub ram: Intel4002,                                             // For now it will only work with one RAM chip           
 }
 
 impl Intel4004 {
@@ -59,10 +61,11 @@ impl Intel4004 {
             acc: 0x00,
             index: [0x00; 16],
             stack: Stack::new(),
-            ram_addr: 0x0,
-            rom_addr: 0x0,
             signal: false, 
+            ram_addrs: 0x00,
+            ram_output: 0x00,
             rom: Intel4001::new(),
+            ram: Intel4002::new(),
         }
     }
   
@@ -94,20 +97,20 @@ impl Intel4004 {
 
     // --- Instructions ---
 
-    // 1-word instructions take 1 instruction cycle while 2-word intructions take 2.
+    /// 1-word instructions take 1 instruction cycle while 2-word intructions take 2.
     fn decode_op(&mut self, op_code: u8) {
         match op_code & 0xF0{
             // Machine instructions
             0x00 => self.nop()       ,
             0x10 => self.jcn(op_code & 0x0F),  // 2-word instruction
-            0x20 => {                          // Check last 4 bit to see which function to call.
+            0x20 => {                          // Check last 4 bit to see which instruction to call.
                 if (op_code & 0x0F) % 2 == 0 {
                     self.fim(op_code & 0x0F);
                 } else {
                     self.src(op_code & 0x0F);
                 }
             }, 
-            0x30 => {                          // Check last 4 bit to see which function to call. 
+            0x30 => {                          // Check last 4 bit to see which instruction to call. 
                 if (op_code & 0x0F) % 2 == 0 {
                     self.fin(op_code & 0x0F);
                 } else {
@@ -124,8 +127,9 @@ impl Intel4004 {
             0xB0 => self.xch(op_code & 0x0F),
             0xC0 => self.bbl(op_code & 0x0F),
             0xD0 => self.ldm(op_code & 0x0F),
+
             // Input/Output and RAM instructions
-            0xE0 => match opcode & 0x0F {
+            0xE0 => match op_code & 0x0F {
                 0x00 => self.wrm(),
                 0x01 => self.wmp(),
                 0x02 => self.wrr(),
@@ -142,6 +146,7 @@ impl Intel4004 {
                 0x0D => self.rd1(),
                 0x0E => self.rd2(),
                 0x0F => self.rd3(),
+                _ => eprintln!("asd")
             },
             _ => {                            // Temporarly to test functions.
                 self.stack.push(0x01);
@@ -155,12 +160,12 @@ impl Intel4004 {
 
     // --- Machine instructions ---
 
-    // No operation.
+    /// No operation.
     fn nop(&mut self) {
         self.pc += 1;
     }
 
-    // Jump to ROM address X if condition is true, otherwise skip.
+    /// Jump to ROM address X if condition is true, otherwise skip.
     fn jcn(&mut self, opa: u8) {
         let condition = opa & 0x0F;
 
@@ -178,7 +183,7 @@ impl Intel4004 {
         }
     }
 
-    // Fetch immediate from ROM data X to specified index register pair.
+    /// Fetch immediate from ROM data X to specified index register pair.
     fn fim(&mut self, opa: u8) {
 
         self.pc += 1;
@@ -190,14 +195,14 @@ impl Intel4004 {
         self.pc += 1;
     }
 
-    // Send register control. Send the context of the specified index pair to ROM and RAM at set time.
+    /// Send register control. Send the context of the specified index pair to ROM and RAM at set time.
     fn src(&mut self, opa: u8) {
         self.pc += 1;
 
-        self.ram_addr = opa >> 1;
+        self.ram_addrs = opa >> 1;
     }
 
-    // Fetch indirect from ROM. Send content of index register pair location 0 out as an address. Data fetched is placed in specied register pair.
+    /// Fetch indirect from ROM. Send content of index register pair location 0 out as an address. Data fetched is placed in specied register pair.
     fn fin(&mut self, opa: u8) {
         self.pc += 1;
 
@@ -205,29 +210,29 @@ impl Intel4004 {
         self.index[rp] = self.rom.fetch_u8(self.index[0] as usize);
     }
 
-    // Jump indirect. Send contents of register pair RRR out as an address at A1 and A2 time (ROM fetch cycles).
+    /// Jump indirect. Send contents of register pair RRR out as an address at A1 and A2 time (ROM fetch cycles).
     fn jin(&mut self, opa: u8) {
         self.pc += 1;
 
         let rp = ((opa >> 1) * 2) as usize;
-        self.rom_addr = self.index[rp];
+        self.ram_addrs = self.index[rp];
     }
 
-    // Jump unconditional. To specified address.
+    /// Jump unconditional. To specified address.
     fn jun(&mut self, opa: u8) {
         self.pc += 1;
 
         self.pc = ((opa & 0x0F) as u16 * 256) + (self.rom.fetch_u8(self.pc.into()) as u16);          // Join the last 4 bits of OPA with the next 8 bits.
     }
 
-    // Jump to subroutine of specified ROM address, save on address(Up 1 level in stack).
+    /// Jump to subroutine of specified ROM address, save on address(Up 1 level in stack).
     fn jms(&mut self, opa: u8) {
         self.stack.push(self.pc);
 
         self.pc = ((opa & 0x0F) as u16 * 256) + (self.rom.fetch_u8(self.pc.into()) as u16);          // Join the last 4 bits of OPA with the next 8 bits.
     }
 
-    // Increment contect of specified register.
+    /// Increment contect of specified register.
     fn inc(&mut self, opa: u8) {
         self.pc += 1;
         
@@ -235,7 +240,7 @@ impl Intel4004 {
         self.index[reg_addr] += 1;
     }
 
-    // Increment contect of specified register. Go to specified ROM address if result != 0, otherwise skip/
+    /// Increment contect of specified register. Go to specified ROM address if result != 0, otherwise skip/
     fn isz(&mut self, opa: u8) {
         self.pc += 1;
 
@@ -250,7 +255,7 @@ impl Intel4004 {
         }
     }
 
-    // Add contents of specified register to accumulator with carry.
+    /// Add contents of specified register to accumulator with carry.
     fn add(&mut self, opa: u8) {
         self.pc += 1;
 
@@ -265,7 +270,7 @@ impl Intel4004 {
         }
     }
 
-    // Subtract contents of specified register to accumulator with borrow. 
+    /// Subtract contents of specified register to accumulator with borrow. 
     fn sub(&mut self, opa: u8) {
         self.pc += 1;
 
@@ -280,7 +285,7 @@ impl Intel4004 {
         }
     }
 
-    // Load contents of specified register to accumulator.
+    /// Load contents of specified register to accumulator.
     fn ld(&mut self, opa: u8) {
         let reg_addr = (opa & 0x0F) as usize;
 
@@ -289,7 +294,7 @@ impl Intel4004 {
         self.pc += 1;
     }
 
-    // Exchange contents of specified index register and accumulator.
+    /// Exchange contents of specified index register and accumulator.
     fn xch(&mut self, opa: u8) {
         self.pc += 1;
 
@@ -300,13 +305,13 @@ impl Intel4004 {
         self.index[reg_addr] = temp;
     }
 
-    // Branch back (down 1 level in stack) and load specified data to accumulator.
+    /// Branch back (down 1 level in stack) and load specified data to accumulator.
     fn bbl(&mut self, opa: u8) {
         self.pc = self.stack.pop();
         self.acc = opa & 0x0F;
     }
 
-    // Load specified data to accumulator
+    /// Load specified data to accumulator
     fn ldm(&mut self, opa: u8) {
         self.pc += 1;
 
@@ -314,4 +319,94 @@ impl Intel4004 {
     }
 
     // --- Input/Output and RAM instructions ---
+
+    /// Write contents of the accumulator into the previously selected RAM main memory character.
+    fn wrm(&mut self) {
+        self.pc += 1;
+
+        self.ram.ram[self.ram_addrs] = self.acc; // TODO: Find better way to access RAM.
+    }
+
+    /// Write contents of the accumulator into the previously selected RAM output port(output lines).
+    fn wmp(&mut self) {
+        self.pc += 1;
+
+        ram.output = self.acc;
+    }
+
+    /// Write contents of the accumulator into the previously selected ROM output port(I/O lines).
+    fn wrr(&mut self) {
+        self.pc += 1;
+
+        self.rom.io = self.acc;
+    }
+
+    /// Write the contents of the accumulator into the previously selected half byte of read/write program memory (for use with the 4008/4009 only).
+    fn wpm(&mut self) {
+        self.pc += 1; // Do nothing as there are no 4008/4009 implemented
+    }
+
+    /// Write the contents of the accumulator into the previously selected RAM status character 0.
+    fn wr0(&mut self) {
+        
+        let ram_register = // Each register has 16 main memory characters and 4 status characters
+
+    }
+
+    /// Write the contents of the accumulator into the previously selected RAM status character 1.
+    fn wr1(&mut self) {
+
+    }
+
+    /// Write the contents of the accumulator into the previously selected RAM status character 2.
+    fn wr2(&mut self) {
+
+    }
+
+    /// Write the contents of the accumulator into the previously selected RAM status character 3.
+    fn wr3(&mut self) {
+
+    }
+
+    /// Subtract the previous selected RAM main memory characted from accumulator with borrow.
+    fn sbm(&mut self) {
+
+    }
+
+    /// Read the previous selected RAM main memory character into the accumulator.
+    fn rdm(&mut self) {
+
+    }
+
+    /// Read the contents of the previous selected ROM input port into the accumulator(I/O lines).
+    fn rdr(&mut self) {
+
+    }
+
+    /// Add the previous selected RAM main memory character to accumulator with carry.
+    fn adm(&mut self) {
+
+    }
+
+    /// Read the previous selected RAM status character 0 into accumulator.
+    fn rd0(&mut self) {
+
+    }
+
+    /// Read the previous selected RAM status character 1 into accumulator.
+    fn rd1(&mut self) {
+
+    }
+
+    /// Read the previous selected RAM status character 2 into accumulator.
+    fn rd2(&mut self) {
+
+    }
+
+    /// Read the previous selected RAM status character 3 into accumulator.
+    fn rd3(&mut self) {
+
+    }
+
+    
 }
