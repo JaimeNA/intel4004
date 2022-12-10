@@ -125,8 +125,8 @@ impl Intel4004 {
             0xC0 => self.bbl(op_code & 0x0F),
             0xD0 => self.ldm(op_code & 0x0F),
             _ => {                            // Temporarly to test functions.
-                self.jms(0x00);
-                self.jms(0x02);
+                self.index[2] = 18;
+                self.add(0x02);
             }     
         }
     }
@@ -231,16 +231,30 @@ impl Intel4004 {
 
     // Add contents of specified register to accumulator with carry.
     fn add(&mut self, opa: u8) {
+        let reg_addr = (opa & 0x0F) as usize;
 
-        // TODO: internal magic
+        self.acc += self.index[reg_addr] + self.carry as u8;
+        self.carry = false;
+
+        if self.acc & 0xF0 != 0 {             // Check if the accumulator value is greater than 4 bits.
+            self.acc &= 0x0F;                 // Remove the extra bits.
+            self.carry = true;
+        }
 
         self.pc += 1;
     }
 
     // Subtract contents of specified register to accumulator with borrow. 
     fn sub(&mut self, opa: u8) {
+        let reg_addr = (opa & 0x0F) as usize;
 
-        // TODO: internal magic
+        self.acc -= self.index[reg_addr] + !self.carry as u8;
+        self.carry = false;
+
+        if self.acc & 0xF0 != 0 {             
+            self.acc &= 0x0F;                 
+            self.carry = true;
+        }
 
         self.pc += 1;
     }
