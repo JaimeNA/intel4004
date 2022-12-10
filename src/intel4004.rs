@@ -125,8 +125,8 @@ impl Intel4004 {
             0xC0 => self.bbl(op_code & 0x0F),
             0xD0 => self.ldm(op_code & 0x0F),
             _ => {                            // Temporarly to test functions.
-                self.index[2] = 18;
-                self.add(0x02);
+                self.stack.push(0x01);
+                self.bbl(0x2);
             }     
         }
     }
@@ -199,7 +199,7 @@ impl Intel4004 {
         self.pc = ((opa & 0x0F) as u16 * 256) + (self.rom.fetch_u8(self.pc.into()) as u16);          // Join the last 4 bits of OPA with the next 8 bits.
     }
 
-    // Jump to subroutine of specified ROM address, save onl address(Up 1 level in stack).
+    // Jump to subroutine of specified ROM address, save on address(Up 1 level in stack).
     fn jms(&mut self, opa: u8) {
         self.stack.push(self.pc);
 
@@ -231,6 +231,8 @@ impl Intel4004 {
 
     // Add contents of specified register to accumulator with carry.
     fn add(&mut self, opa: u8) {
+        self.pc += 1;
+
         let reg_addr = (opa & 0x0F) as usize;
 
         self.acc += self.index[reg_addr] + self.carry as u8;
@@ -240,12 +242,12 @@ impl Intel4004 {
             self.acc &= 0x0F;                 // Remove the extra bits.
             self.carry = true;
         }
-
-        self.pc += 1;
     }
 
     // Subtract contents of specified register to accumulator with borrow. 
     fn sub(&mut self, opa: u8) {
+        self.pc += 1;
+
         let reg_addr = (opa & 0x0F) as usize;
 
         self.acc -= self.index[reg_addr] + !self.carry as u8;
@@ -255,39 +257,38 @@ impl Intel4004 {
             self.acc &= 0x0F;                 
             self.carry = true;
         }
-
-        self.pc += 1;
     }
 
     // Load contents of specified register to accumulator.
     fn ld(&mut self, opa: u8) {
+        let reg_addr = (opa & 0x0F) as usize;
 
-        // TODO: internal magic
+        self.acc = self.index[reg_addr];
 
         self.pc += 1;
     }
 
     // Exchange contents of specified index register and accumulator.
     fn xch(&mut self, opa: u8) {
-
-        // TODO: internal magic
-
         self.pc += 1;
+
+        let reg_addr = (opa & 0x0F) as usize;
+
+        let temp = self.acc;
+        self.acc = self.index[reg_addr];
+        self.index[reg_addr] = temp;
     }
 
     // Branch back (down 1 level in stack) and load specified data to accumulator.
     fn bbl(&mut self, opa: u8) {
-
-        // TODO: internal magic
-
-        self.pc += 1;
+        self.pc = self.stack.pop();
+        self.acc = opa & 0x0F;
     }
 
     // Load specified data to accumulator
     fn ldm(&mut self, opa: u8) {
-
-        // TODO: internal magic
-
         self.pc += 1;
+
+        self.acc = opa & 0x0F;
     }
 }
