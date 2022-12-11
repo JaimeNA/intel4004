@@ -48,7 +48,6 @@ pub struct Intel4004 {
     stack: Stack,     
     signal: bool,
     ram_addrs: u8,
-    ram_status: u8,
     pub rom: Intel4001,     
     pub ram: Intel4002,                                             // For now it will only work with one RAM chip           
 }
@@ -63,7 +62,6 @@ impl Intel4004 {
             stack: Stack::new(),
             signal: false, 
             ram_addrs: 0x00,
-            ram_output: 0x00,
             rom: Intel4001::new(),
             ram: Intel4002::new(),
         }
@@ -146,12 +144,9 @@ impl Intel4004 {
                 0x0D => self.rd1(),
                 0x0E => self.rd2(),
                 0x0F => self.rd3(),
-                _ => eprintln!("asd")
+                _ => self.nop()
             },
-            _ => {                            // Temporarly to test functions.
-                self.stack.push(0x01);
-                self.bbl(0x2);
-            }     
+            _ => self.nop()
         }
     }
 
@@ -324,14 +319,14 @@ impl Intel4004 {
     fn wrm(&mut self) {
         self.pc += 1;
 
-        self.ram.ram[self.ram_addrs] = self.acc; // TODO: Find better way to access RAM.
+        self.ram.ram[self.ram_addrs as usize] = self.acc; // TODO: Find better way to access RAM.
     }
 
     /// Write contents of the accumulator into the previously selected RAM output port(output lines).
     fn wmp(&mut self) {
         self.pc += 1;
 
-        ram.output = self.acc;
+        self.ram.output = self.acc;
     }
 
     /// Write contents of the accumulator into the previously selected ROM output port(I/O lines).
@@ -348,64 +343,108 @@ impl Intel4004 {
 
     /// Write the contents of the accumulator into the previously selected RAM status character 0.
     fn wr0(&mut self) {
-        
-        let ram_register = // Each register has 16 main memory characters and 4 status characters
+        self.pc += 1;
 
+       let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03;        // Each register has 16 main memory characters and 4 status characters
+       self.ram.status[(ram_register * 4) as usize] = self.acc;         // 0 - 4 - 8 - C <- possible status index
     }
 
     /// Write the contents of the accumulator into the previously selected RAM status character 1.
     fn wr1(&mut self) {
+        self.pc += 1;
 
+        let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
+        self.ram.status[((ram_register * 4) + 1) as usize] = self.acc;  // 1 - 5 - 9 - D
     }
 
     /// Write the contents of the accumulator into the previously selected RAM status character 2.
     fn wr2(&mut self) {
+        self.pc += 1;
 
+        let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
+        self.ram.status[((ram_register * 4) + 2) as usize] = self.acc;  // 2 - 6 - A - E
     }
 
     /// Write the contents of the accumulator into the previously selected RAM status character 3.
     fn wr3(&mut self) {
+        self.pc += 1;
 
+        let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
+        self.ram.status[((ram_register * 4) + 3) as usize] = self.acc;  // 3 - 7 - B - F
     }
 
     /// Subtract the previous selected RAM main memory characted from accumulator with borrow.
     fn sbm(&mut self) {
+        self.pc += 1;
 
+        self.acc -= self.ram.ram[self.ram_addrs as usize] + !self.carry as u8;
+        self.carry = false;
+
+        if self.acc & 0xF0 != 0 {             
+            self.acc &= 0x0F;                 
+            self.carry = true;
+        }
     }
 
     /// Read the previous selected RAM main memory character into the accumulator.
     fn rdm(&mut self) {
+        self.pc += 1;
 
+        self.acc = self.ram.ram[self.ram_addrs as usize];
     }
 
     /// Read the contents of the previous selected ROM input port into the accumulator(I/O lines).
     fn rdr(&mut self) {
+        self.pc += 1;
 
+        self.acc = self.rom.io;
     }
 
     /// Add the previous selected RAM main memory character to accumulator with carry.
     fn adm(&mut self) {
+        self.pc += 1;
 
+        self.acc += self.ram.ram[self.ram_addrs as usize] + self.carry as u8;
+        self.carry = false;
+
+        if self.acc & 0xF0 != 0 {             
+            self.acc &= 0x0F;                 
+            self.carry = true;
+        }
     }
 
     /// Read the previous selected RAM status character 0 into accumulator.
     fn rd0(&mut self) {
+        self.pc += 1;
 
+        let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
+        self.acc = self.ram.status[(ram_register * 4) as usize];
     }
 
     /// Read the previous selected RAM status character 1 into accumulator.
     fn rd1(&mut self) {
+        self.pc += 1;
 
+        let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
+        self.acc = self.ram.status[((ram_register * 4) + 1) as usize];
     }
 
     /// Read the previous selected RAM status character 2 into accumulator.
     fn rd2(&mut self) {
 
+        self.pc += 1;
+
+        let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
+        self.acc = self.ram.status[((ram_register * 4) + 2) as usize];
     }
 
     /// Read the previous selected RAM status character 3 into accumulator.
     fn rd3(&mut self) {
 
+        self.pc += 1;
+
+        let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
+        self.acc = self.ram.status[((ram_register * 4) + 3) as usize];
     }
 
     
