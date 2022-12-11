@@ -63,6 +63,7 @@ pub fn print_ram(ram: &Intel4002) {
 
     println!("\nRAM: ");
 
+    println!("\nMain memory: ");
     println!("0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F");
 
     for inst in ram.ram {
@@ -71,6 +72,20 @@ pub fn print_ram(ram: &Intel4002) {
         i += 1;
 
         if i == 16 {
+            println!("");
+            i = 0;
+        }
+    }
+
+    println!("\nStatus characters: ");
+    println!("0  1  2  3");
+
+    for inst in ram.status {
+        print!("{:02X} ", inst);
+
+        i += 1;
+
+        if i == 4 {
             println!("");
             i = 0;
         }

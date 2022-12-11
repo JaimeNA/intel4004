@@ -47,6 +47,7 @@ pub struct Intel4004 {
     index: [u8; 16],                                                 // Dynamic RAM cell array of 16 x 4 bits.
     stack: Stack,     
     signal: bool,
+    command_control: u8,
     ram_addrs: u8,
     pub rom: Intel4001,     
     pub ram: Intel4002,                                             // For now it will only work with one RAM chip           
@@ -61,6 +62,7 @@ impl Intel4004 {
             index: [0x00; 16],
             stack: Stack::new(),
             signal: false, 
+            command_control: 0x00,
             ram_addrs: 0x00,
             rom: Intel4001::new(),
             ram: Intel4002::new(),
@@ -242,7 +244,9 @@ impl Intel4004 {
         let rom_addr = self.rom.fetch_u8(self.pc.into()) as u16;
         let reg_addr =(opa & 0x0F) as usize;
 
-        self.index[reg_addr] += 1;
+        if self.index[reg_addr] != 0x0F {
+            self.index[reg_addr] += 1;
+        }
         if  self.index[reg_addr] != 0 {
             self.pc = rom_addr;
         } else {
@@ -431,7 +435,6 @@ impl Intel4004 {
 
     /// Read the previous selected RAM status character 2 into accumulator.
     fn rd2(&mut self) {
-
         self.pc += 1;
 
         let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
@@ -440,12 +443,150 @@ impl Intel4004 {
 
     /// Read the previous selected RAM status character 3 into accumulator.
     fn rd3(&mut self) {
-
         self.pc += 1;
 
         let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
         self.acc = self.ram.status[((ram_register * 4) + 3) as usize];
     }
 
+    // --- Accumulator group instructions ---
     
+    /// Clear accumulator and carry.
+    fn clb(&mut self) {
+        self.pc += 1;
+
+        self.acc = 0x00;
+        self.carry = false;
+    }
+    
+    /// Clear carry.
+    fn clc(&mut self) {
+        self.pc += 1;
+
+        self.carry = false;
+    }
+    
+    /// Increment accumulator.
+    fn iac(&mut self) {
+        self.pc += 1;
+
+        self.acc += 1;
+    }
+    
+    /// Complement carry.
+    fn cmc(&mut self) {
+        self.pc += 1;
+
+        self.carry = !self.carry;
+    }
+    
+    /// Complement accumulator.
+    fn cma(&mut self) {
+        self.pc += 1;
+
+        self.acc = !self.acc;
+    }
+    
+    /// Rotate left accumulator and carry.
+    fn ral(&mut self) {
+        self.pc += 1;
+
+        let new_carry = matches!(self.acc & 8, 8); // Check if there is a digit at the end of the accumulator(supposed to be 4 bits).
+
+        self.acc <<= 1;
+        if self.carry {
+            self.acc |= 1;
+        }
+
+        self.carry = new_carry;
+    }
+    
+    /// Rotate left accumulator and carry.    
+    fn rar(&mut self) {
+        self.pc += 1;
+
+        let new_carry = matches!(self.acc & 1, 1); // Check if there is a digit at the start of the accumulator(supposed to be 4 bits).
+
+        self.acc <<= 1;
+        if self.carry {
+            self.acc |= 8;
+        }
+        
+        self.carry = new_carry;
+    }
+    
+    /// Transmit carry to accumulator and clear carry.
+    fn tcc(&mut self) {
+        self.pc += 1;
+
+        self.acc = self.carry as u8;
+        self.carry = false;
+    }
+    
+    /// Decrement accumulator.
+    fn dac(&mut self) {
+        self.pc += 1;
+
+        if self.acc == 0 {           // Can't be negative.
+            self.acc = 0x0F;
+            self.carry = false;
+        } else {
+            self.acc -= 1;
+            self.carry = true;       // Carry is reversed.
+        }
+
+    }
+    
+    /// Transfer carry subtract and clear carry.
+    fn tcs(&mut self) {
+        self.pc += 1;
+
+        if self.carry {
+            self.acc = 10;
+        } else {
+            self.acc = 9;
+        }
+        self.carry = false;
+    }
+    
+    /// Set carry.
+    fn stc(&mut self) {
+        self.pc += 1;
+
+        self.carry = true;
+    }
+    
+    /// Decimal adjust accumulator.
+    fn daa(&mut self) {
+        self.pc += 1;
+
+        if self.carry || self.acc > 9 {
+            self.acc += 6;
+
+            if self.acc > 0x0F {
+                self.carry = true;
+            }
+        }
+    }
+    
+    /// Keyboard process. Converts contents of the accumulator from a one out of four code to a binary code.
+    fn kbp(&mut self) {
+        self.pc += 1;
+
+        self.acc = match self.acc {
+            0b0000 => 0,
+            0b0001 => 1,
+            0b0010 => 2,
+            0b0100 => 3,
+            0b1000 => 4,
+            _ => 0xF,
+          };
+    }
+    
+    /// Designate command line.
+    fn dcl(&mut self) {
+        self.pc += 1;
+
+        self.command_control = self.acc;
+    }
 }

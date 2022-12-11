@@ -7,11 +7,14 @@ fn main() -> io::Result<()>{
 
     let mut cpu = Intel4004::new();
 
-    cpu.rom.load_rom("rom/RDn")?;
+    cpu.rom.load_rom("rom/WRM")?;
 
-    cpu.clock();
-    cpu.clock();
-    cpu.clock();
+    let mut i = 0;
+
+    while i < 1000 {
+        cpu.clock();
+        i += 1;
+    }
 
     print_rom(&cpu.rom);
     print_ram(&cpu.ram);

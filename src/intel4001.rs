@@ -20,7 +20,11 @@ impl Intel4001 {
     }
 
     pub fn fetch_u8(&self, addr: usize) -> u8{
-        self.rom[addr]
+
+        if addr < 256 {
+            return self.rom[addr];
+        }
+        0x00
     }
 
     pub fn load_rom(&mut self, filename: &str) -> io::Result<()>{
