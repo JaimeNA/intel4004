@@ -7,11 +7,11 @@ fn main() -> io::Result<()>{
 
     let mut cpu = Intel4004::new();
 
-    cpu.rom.load_rom("rom/WRM")?;
+    cpu.rom.load_rom("rom/ram_test")?;
 
     let mut i = 0;
 
-    while i < 1000 {
+    while i < 5000 {
         cpu.clock();
         i += 1;
     }
@@ -22,3 +22,4 @@ fn main() -> io::Result<()>{
 
     Ok(())
 }
+// TODO: check correct functionallity

@@ -95,10 +95,30 @@ impl Intel4004 {
         &self.stack.addrs
     }
 
+    pub fn set_pc(&mut self, pc: u16) {
+        self.pc = pc;
+    }
+
+    pub fn set_carry(&mut self, carry: bool) {
+        self.carry = carry;
+    }
+
+    pub fn set_acc(&mut self, acc: u8) {
+        self.acc = acc;
+    }
+
+    pub fn set_index(&mut self, index: [u8; 16]) {
+        self.index = index;
+    }
+
+    pub fn set_stack(&mut self, stack: [u16; 3]) {
+        self.stack.addrs = stack;
+    }
+
     // --- Instructions ---
 
     /// 1-word instructions take 1 instruction cycle while 2-word intructions take 2.
-    fn decode_op(&mut self, op_code: u8) {
+    pub fn decode_op(&mut self, op_code: u8) {
         match op_code & 0xF0{
             // Machine instructions
             0x00 => self.nop()       ,
@@ -146,6 +166,25 @@ impl Intel4004 {
                 0x0D => self.rd1(),
                 0x0E => self.rd2(),
                 0x0F => self.rd3(),
+                _ => self.nop()
+            },
+
+            // Accumulator group instructions
+            0xF0 => match op_code & 0x0F {
+                0x00 => self.clb(),
+                0x01 => self.clc(),
+                0x02 => self.iac(),
+                0x03 => self.cmc(),
+                0x04 => self.cma(),
+                0x05 => self.ral(),
+                0x06 => self.rar(),
+                0x07 => self.tcc(),
+                0x08 => self.dac(),
+                0x09 => self.tcs(),
+                0x0A => self.stc(),
+                0x0B => self.daa(),
+                0x0C => self.kbp(),
+                0x0D => self.dcl(),
                 _ => self.nop()
             },
             _ => self.nop()
