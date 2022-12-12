@@ -3,5 +3,14 @@
 version = 3
 
 [[package]]
+name = "arbitrary-int"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f1ecab2315ab32c00b27d72c3f88be7e32aade84f216a9bc26c336c09957f75"
+
+[[package]]
 name = "intel4004_emu"
 version = "0.1.0"
+dependencies = [
+ "arbitrary-int",
+]

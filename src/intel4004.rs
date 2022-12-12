@@ -1,6 +1,8 @@
 use super::intel4001::Intel4001;
 use super::intel4002::Intel4002;
 
+use arbitrary_int::{u4};
+
 // Stack
 
 struct Stack{                                                        // 3 x 12 bits array
@@ -43,11 +45,11 @@ impl Stack {
 pub struct Intel4004 {
     pc:    u16,
     carry: bool, 
-    acc:   u8,
-    index: [u8; 16],                                                 // Dynamic RAM cell array of 16 x 4 bits.
+    acc:   u4,
+    index: [u4; 16],                                                 // Dynamic RAM cell array of 16 x 4 bits.
     stack: Stack,     
     signal: bool,
-    command_control: u8,
+    command_control: u4,
     ram_addrs: u8,
     pub rom: Intel4001,     
     pub ram: Intel4002,                                             // For now it will only work with one RAM chip           
@@ -58,11 +60,11 @@ impl Intel4004 {
         Intel4004 {
             pc: 0x00,
             carry: false,
-            acc: 0x00,
-            index: [0x00; 16],
+            acc: u4::new(0x0),
+            index: [u4::new(0x0); 16],
             stack: Stack::new(),
             signal: false, 
-            command_control: 0x00,
+            command_control: u4::new(0x0),
             ram_addrs: 0x00,
             rom: Intel4001::new(),
             ram: Intel4002::new(),
@@ -84,15 +86,19 @@ impl Intel4004 {
     }
 
     pub fn get_acc(&self) -> u8 {
-        self.acc
+        self.acc.value()
     }
 
-    pub fn get_index(&self) -> &[u8; 16] {
+    pub fn get_index(&self) -> &[u4; 16] {
         &self.index
     }
 
     pub fn get_stack(&self) -> &[u16; 3] {
         &self.stack.addrs
+    }
+
+    pub fn get_cc(&self) -> u8 {
+        self.command_control.value()
     }
 
     pub fn set_pc(&mut self, pc: u16) {
@@ -104,15 +110,19 @@ impl Intel4004 {
     }
 
     pub fn set_acc(&mut self, acc: u8) {
-        self.acc = acc;
+        self.acc = u4::new(acc);
     }
 
-    pub fn set_index(&mut self, index: [u8; 16]) {
+    pub fn set_index(&mut self, index: [u4; 16]) {
         self.index = index;
     }
 
     pub fn set_stack(&mut self, stack: [u16; 3]) {
         self.stack.addrs = stack;
+    }
+
+    pub fn set_cc(&mut self,cc: u8) {
+        self.command_control = u4::new(cc);
     }
 
     // --- Instructions ---
@@ -212,7 +222,7 @@ impl Intel4004 {
 
         self.pc += 1;
 
-        if c1 != 1 && ((self.acc == 0 && c2 == 1) || (self.carry && c3 == 1) || (self.signal && c4 == 1)) {
+        if c1 != 1 && ((self.acc.value() == 0 && c2 == 1) || (self.carry && c3 == 1) || (self.signal && c4 == 1)) {
             self.pc = self.rom.fetch_u8(self.pc.into()) as u16;
         } else {
             self.pc += 1;
@@ -225,8 +235,8 @@ impl Intel4004 {
         self.pc += 1;
 
         let rp = ((opa >> 1) * 2) as usize;
-
-        self.index[rp] = self.rom.fetch_u8(self.pc.into());
+        let value = self.rom.fetch_u8(self.pc.into());
+        self.index[rp] = u4::new(value);
 
         self.pc += 1;
     }
@@ -243,7 +253,8 @@ impl Intel4004 {
         self.pc += 1;
 
         let rp = ((opa >> 1) * 2) as usize;
-        self.index[rp] = self.rom.fetch_u8(self.index[0] as usize);
+        let val = self.rom.fetch_u8(self.index[0].value() as usize);
+        self.index[rp] = u4::new(val);
     }
 
     /// Jump indirect. Send contents of register pair RRR out as an address at A1 and A2 time (ROM fetch cycles).
@@ -251,7 +262,7 @@ impl Intel4004 {
         self.pc += 1;
 
         let rp = ((opa >> 1) * 2) as usize;
-        self.ram_addrs = self.index[rp];
+        self.ram_addrs = self.index[rp].value();
     }
 
     /// Jump unconditional. To specified address.
@@ -273,7 +284,7 @@ impl Intel4004 {
         self.pc += 1;
         
         let reg_addr =(opa & 0x0F) as usize;
-        self.index[reg_addr] += 1;
+        self.index[reg_addr] += u4::new(1);
     }
 
     /// Increment contect of specified register. Go to specified ROM address if result != 0, otherwise skip/
@@ -283,10 +294,10 @@ impl Intel4004 {
         let rom_addr = self.rom.fetch_u8(self.pc.into()) as u16;
         let reg_addr =(opa & 0x0F) as usize;
 
-        if self.index[reg_addr] != 0x0F {
-            self.index[reg_addr] += 1;
+        if self.index[reg_addr].value() != 0x0F {
+            self.index[reg_addr] += u4::new(1);
         }
-        if  self.index[reg_addr] != 0 {
+        if  self.index[reg_addr].value() != 0 {
             self.pc = rom_addr;
         } else {
             self.pc += 1;
@@ -298,14 +309,16 @@ impl Intel4004 {
         self.pc += 1;
 
         let reg_addr = (opa & 0x0F) as usize;
+        let mut val = self.acc.value();
 
-        self.acc += self.index[reg_addr] + self.carry as u8;
+        val += self.index[reg_addr].value() + self.carry as u8;
         self.carry = false;
 
-        if self.acc & 0xF0 != 0 {             // Check if the accumulator value is greater than 4 bits.
-            self.acc &= 0x0F;                 // Remove the extra bits.
+        if val & 0xF0 != 0 {             // Check if the accumulator value is greater than 4 bits.
+            val &= 0x0F;                 // Remove the extra bits.
             self.carry = true;
         }
+        self.acc = u4::new(val);
     }
 
     /// Subtract contents of specified register to accumulator with borrow. 
@@ -313,14 +326,16 @@ impl Intel4004 {
         self.pc += 1;
 
         let reg_addr = (opa & 0x0F) as usize;
+        let mut val = self.acc.value();
 
-        self.acc -= self.index[reg_addr] + !self.carry as u8;
+        val -= self.index[reg_addr].value() + !self.carry as u8;
         self.carry = false;
 
-        if self.acc & 0xF0 != 0 {             
-            self.acc &= 0x0F;                 
+        if val & 0xF0 != 0 {             
+            val &= 0x0F;                 
             self.carry = true;
         }
+        self.acc = u4::new(val);
     }
 
     /// Load contents of specified register to accumulator.
@@ -338,22 +353,22 @@ impl Intel4004 {
 
         let reg_addr = (opa & 0x0F) as usize;
 
-        let temp = self.acc;
+        let temp = self.acc.value();
         self.acc = self.index[reg_addr];
-        self.index[reg_addr] = temp;
+        self.index[reg_addr] = u4::new(temp);
     }
 
     /// Branch back (down 1 level in stack) and load specified data to accumulator.
     fn bbl(&mut self, opa: u8) {
         self.pc = self.stack.pop();
-        self.acc = opa & 0x0F;
+        self.acc = u4::new(opa & 0x0F);
     }
 
     /// Load specified data to accumulator
     fn ldm(&mut self, opa: u8) {
         self.pc += 1;
 
-        self.acc = opa & 0x0F;
+        self.acc = u4::new(opa & 0x0F);
     }
 
     // --- Input/Output and RAM instructions ---
@@ -362,21 +377,21 @@ impl Intel4004 {
     fn wrm(&mut self) {
         self.pc += 1;
 
-        self.ram.ram[self.ram_addrs as usize] = self.acc; // TODO: Find better way to access RAM.
+        self.ram.ram[self.ram_addrs as usize] = self.acc.value(); // TODO: Find better way to access RAM.
     }
 
     /// Write contents of the accumulator into the previously selected RAM output port(output lines).
     fn wmp(&mut self) {
         self.pc += 1;
 
-        self.ram.output = self.acc;
+        self.ram.output = self.acc.value();
     }
 
     /// Write contents of the accumulator into the previously selected ROM output port(I/O lines).
     fn wrr(&mut self) {
         self.pc += 1;
 
-        self.rom.io = self.acc;
+        self.rom.io = self.acc.value();
     }
 
     /// Write the contents of the accumulator into the previously selected half byte of read/write program memory (for use with the 4008/4009 only).
@@ -388,8 +403,8 @@ impl Intel4004 {
     fn wr0(&mut self) {
         self.pc += 1;
 
-       let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03;        // Each register has 16 main memory characters and 4 status characters
-       self.ram.status[(ram_register * 4) as usize] = self.acc;         // 0 - 4 - 8 - C <- possible status index
+       let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03;                // Each register has 16 main memory characters and 4 status characters
+       self.ram.status[(ram_register * 4) as usize] = self.acc.value();         // 0 - 4 - 8 - C <- possible status index
     }
 
     /// Write the contents of the accumulator into the previously selected RAM status character 1.
@@ -397,7 +412,7 @@ impl Intel4004 {
         self.pc += 1;
 
         let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
-        self.ram.status[((ram_register * 4) + 1) as usize] = self.acc;  // 1 - 5 - 9 - D
+        self.ram.status[((ram_register * 4) + 1) as usize] = self.acc.value();  // 1 - 5 - 9 - D
     }
 
     /// Write the contents of the accumulator into the previously selected RAM status character 2.
@@ -405,7 +420,7 @@ impl Intel4004 {
         self.pc += 1;
 
         let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
-        self.ram.status[((ram_register * 4) + 2) as usize] = self.acc;  // 2 - 6 - A - E
+        self.ram.status[((ram_register * 4) + 2) as usize] = self.acc.value();  // 2 - 6 - A - E
     }
 
     /// Write the contents of the accumulator into the previously selected RAM status character 3.
@@ -413,47 +428,53 @@ impl Intel4004 {
         self.pc += 1;
 
         let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
-        self.ram.status[((ram_register * 4) + 3) as usize] = self.acc;  // 3 - 7 - B - F
+        self.ram.status[((ram_register * 4) + 3) as usize] = self.acc.value();  // 3 - 7 - B - F
     }
 
     /// Subtract the previous selected RAM main memory characted from accumulator with borrow.
     fn sbm(&mut self) {
         self.pc += 1;
 
-        self.acc -= self.ram.ram[self.ram_addrs as usize] + !self.carry as u8;
+        let mut val = self.acc.value();
+        val -= self.ram.ram[self.ram_addrs as usize] + !self.carry as u8;
         self.carry = false;
 
-        if self.acc & 0xF0 != 0 {             
-            self.acc &= 0x0F;                 
+        if val & 0xF0 != 0 {             
+            val &= 0xF;                 
             self.carry = true;
         }
+        self.acc = u4::new(val);
     }
 
     /// Read the previous selected RAM main memory character into the accumulator.
     fn rdm(&mut self) {
         self.pc += 1;
 
-        self.acc = self.ram.ram[self.ram_addrs as usize];
+        let val = self.ram.ram[self.ram_addrs as usize];
+        self.acc = u4::new(val);
     }
 
     /// Read the contents of the previous selected ROM input port into the accumulator(I/O lines).
     fn rdr(&mut self) {
         self.pc += 1;
 
-        self.acc = self.rom.io;
+        self.acc = u4::new(self.rom.io);
     }
 
     /// Add the previous selected RAM main memory character to accumulator with carry.
     fn adm(&mut self) {
         self.pc += 1;
 
-        self.acc += self.ram.ram[self.ram_addrs as usize] + self.carry as u8;
+        let mut val = self.acc.value();
+
+        val += self.ram.ram[self.ram_addrs as usize] + self.carry as u8;
         self.carry = false;
 
-        if self.acc & 0xF0 != 0 {             
-            self.acc &= 0x0F;                 
+        if val & 0xF0 != 0 {             
+            val &= 0xF;                 
             self.carry = true;
         }
+        self.acc = u4::new(val);
     }
 
     /// Read the previous selected RAM status character 0 into accumulator.
@@ -461,7 +482,8 @@ impl Intel4004 {
         self.pc += 1;
 
         let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
-        self.acc = self.ram.status[(ram_register * 4) as usize];
+        let val = self.ram.status[(ram_register * 4) as usize];
+        self.acc = u4::new(val);
     }
 
     /// Read the previous selected RAM status character 1 into accumulator.
@@ -469,7 +491,8 @@ impl Intel4004 {
         self.pc += 1;
 
         let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
-        self.acc = self.ram.status[((ram_register * 4) + 1) as usize];
+        let val = self.ram.status[((ram_register * 4) + 1) as usize];
+        self.acc = u4::new(val);
     }
 
     /// Read the previous selected RAM status character 2 into accumulator.
@@ -477,7 +500,8 @@ impl Intel4004 {
         self.pc += 1;
 
         let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
-        self.acc = self.ram.status[((ram_register * 4) + 2) as usize];
+        let val = self.ram.status[((ram_register * 4) + 2) as usize];
+        self.acc = u4::new(val);
     }
 
     /// Read the previous selected RAM status character 3 into accumulator.
@@ -485,7 +509,8 @@ impl Intel4004 {
         self.pc += 1;
 
         let ram_register = ((self.ram_addrs & 0xF0) >> 4) & 0x03; 
-        self.acc = self.ram.status[((ram_register * 4) + 3) as usize];
+        let val = self.ram.status[((ram_register * 4) + 3) as usize];
+        self.acc = u4::new(val);
     }
 
     // --- Accumulator group instructions ---
@@ -494,7 +519,7 @@ impl Intel4004 {
     fn clb(&mut self) {
         self.pc += 1;
 
-        self.acc = 0x00;
+        self.acc = u4::new(0x00);
         self.carry = false;
     }
     
@@ -509,7 +534,7 @@ impl Intel4004 {
     fn iac(&mut self) {
         self.pc += 1;
 
-        self.acc += 1;
+        self.acc += u4::new(1);
     }
     
     /// Complement carry.
@@ -530,11 +555,11 @@ impl Intel4004 {
     fn ral(&mut self) {
         self.pc += 1;
 
-        let new_carry = matches!(self.acc & 8, 8); // Check if there is a digit at the end of the accumulator(supposed to be 4 bits).
+        let new_carry = matches!(self.acc.value() & 8, 8); // Check if there is a digit at the end of the accumulator(supposed to be 4 bits).
 
         self.acc <<= 1;
         if self.carry {
-            self.acc |= 1;
+            self.acc |= u4::new(1);
         }
 
         self.carry = new_carry;
@@ -544,11 +569,11 @@ impl Intel4004 {
     fn rar(&mut self) {
         self.pc += 1;
 
-        let new_carry = matches!(self.acc & 1, 1); // Check if there is a digit at the start of the accumulator(supposed to be 4 bits).
+        let new_carry = matches!(self.acc.value() & 1, 1); // Check if there is a digit at the start of the accumulator(supposed to be 4 bits).
 
-        self.acc <<= 1;
+        self.acc >>= 1;
         if self.carry {
-            self.acc |= 8;
+            self.acc |= u4::new(8);
         }
         
         self.carry = new_carry;
@@ -558,7 +583,7 @@ impl Intel4004 {
     fn tcc(&mut self) {
         self.pc += 1;
 
-        self.acc = self.carry as u8;
+        self.acc = u4::new(self.carry as u8);
         self.carry = false;
     }
     
@@ -566,14 +591,15 @@ impl Intel4004 {
     fn dac(&mut self) {
         self.pc += 1;
 
-        if self.acc == 0 {           // Can't be negative.
-            self.acc = 0x0F;
+        let mut val = self.acc.value();
+        if val == 0 {           // Can't be negative.
+            val = 0x0F;
             self.carry = false;
         } else {
-            self.acc -= 1;
+            val -= 1;
             self.carry = true;       // Carry is reversed.
         }
-
+        self.acc = u4::new(val);
     }
     
     /// Transfer carry subtract and clear carry.
@@ -581,9 +607,9 @@ impl Intel4004 {
         self.pc += 1;
 
         if self.carry {
-            self.acc = 10;
+            self.acc = u4::new(10);
         } else {
-            self.acc = 9;
+            self.acc = u4::new(9);
         }
         self.carry = false;
     }
@@ -599,10 +625,11 @@ impl Intel4004 {
     fn daa(&mut self) {
         self.pc += 1;
 
-        if self.carry || self.acc > 9 {
-            self.acc += 6;
-
-            if self.acc > 0x0F {
+        let mut val = self.acc.value();
+        if self.carry || val > 9 {
+            val += 6;
+            self.acc = u4::new(val & 0xF);
+            if val > 0xF {
                 self.carry = true;
             }
         }
@@ -612,14 +639,14 @@ impl Intel4004 {
     fn kbp(&mut self) {
         self.pc += 1;
 
-        self.acc = match self.acc {
+        self.acc = u4::new(match self.acc.value() {
             0b0000 => 0,
             0b0001 => 1,
             0b0010 => 2,
             0b0100 => 3,
             0b1000 => 4,
             _ => 0xF,
-          };
+          });
     }
     
     /// Designate command line.

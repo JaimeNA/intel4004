@@ -2,6 +2,8 @@ use super::intel4001::Intel4001;
 use super::intel4002::Intel4002;
 use super::intel4004::Intel4004;
 
+use arbitrary_int::{u4};
+
 // Disassembler
 
 pub fn print_cpu_state(cpu: &Intel4004) {
@@ -13,7 +15,7 @@ pub fn print_cpu_state(cpu: &Intel4004) {
     println!("\nCarry: {}", cpu.get_carry());
 
     // Accumulator
-    println!("\nAccumulator: {:#01X}", cpu.get_acc());
+    println!("\nAccumulator: {:#0X}", cpu.get_acc());
 
     // Index
     print_index(cpu.get_index());
@@ -22,13 +24,13 @@ pub fn print_cpu_state(cpu: &Intel4004) {
     print_stack(cpu.get_stack());
 }
 
-pub fn print_index(index: &[u8; 16]) {
+pub fn print_index(index: &[u4; 16]) {
     println!("\nIndex: ");
 
-    println!(" {:#01X} {:#01X} {:#01X} {:#01X}", index[0] , index[1] , index[2] , index[3] );
-    println!(" {:#01X} {:#01X} {:#01X} {:#01X}", index[4] , index[5] , index[6] , index[7] );
-    println!(" {:#01X} {:#01X} {:#01X} {:#01X}", index[8] , index[9] , index[10], index[11]);
-    println!(" {:#01X} {:#01X} {:#01X} {:#01X}", index[12], index[13], index[14], index[15]);
+    println!(" {:#01X} {:#01X} {:#01X} {:#01X}", index[0].value() , index[1].value() , index[2].value() , index[3].value() );
+    println!(" {:#01X} {:#01X} {:#01X} {:#01X}", index[4].value() , index[5].value() , index[6].value() , index[7].value() );
+    println!(" {:#01X} {:#01X} {:#01X} {:#01X}", index[8].value() , index[9].value() , index[10].value(), index[11].value());
+    println!(" {:#01X} {:#01X} {:#01X} {:#01X}", index[12].value(), index[13].value(), index[14].value(), index[15].value());
 }
 
 pub fn print_stack(stack: &[u16; 3]) {
