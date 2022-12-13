@@ -52,7 +52,7 @@ fn test_cma() {
     cpu.set_acc(0x9);
 
     cpu.decode_op(0xF4);
-    assert_eq!(cpu.get_acc() & 0x0F, 0x6);            // TODO: implement typoe u4 into accumulator.
+    assert_eq!(cpu.get_acc(), 0x6);           
 }
 
 #[test]
@@ -133,6 +133,21 @@ fn test_daa() {
     cpu.decode_op(0xFB);
     assert_eq!(cpu.get_acc(), 0x1);  
     assert_eq!(cpu.get_carry(), true);          
+}
+
+#[test]
+fn test_kbp() {
+    let mut cpu = Intel4004::new();
+
+    cpu.set_acc(0x9);
+
+    cpu.decode_op(0xFC);
+    assert_eq!(cpu.get_acc(), 0xF);           
+
+    cpu.set_acc(0x2);
+
+    cpu.decode_op(0xFC);
+    assert_eq!(cpu.get_acc(), 0x2);           
 }
 
 #[test]
