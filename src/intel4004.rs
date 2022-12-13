@@ -101,6 +101,10 @@ impl Intel4004 {
         self.command_control.value()
     }
 
+    pub fn get_ram_addrs(&self) -> u8 {
+        self.ram_addrs
+    }
+
     pub fn set_pc(&mut self, pc: u16) {
         self.pc = pc;
     }
@@ -121,8 +125,12 @@ impl Intel4004 {
         self.stack.addrs = stack;
     }
 
-    pub fn set_cc(&mut self,cc: u8) {
+    pub fn set_cc(&mut self, cc: u8) {
         self.command_control = u4::new(cc);
+    }
+
+    pub fn set_ram_addrs(&mut self, ram_addrs: u8) {
+        self.ram_addrs = ram_addrs;
     }
 
     // --- Instructions ---
@@ -436,7 +444,7 @@ impl Intel4004 {
         self.pc += 1;
 
         let mut val = self.acc.value();
-        val -= self.ram.ram[self.ram_addrs as usize] + !self.carry as u8;
+        val -= self.ram.ram[self.ram_addrs as usize] + self.carry as u8;
         self.carry = false;
 
         if val & 0xF0 != 0 {             
