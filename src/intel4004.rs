@@ -399,7 +399,7 @@ impl Intel4004 {
     fn wrr(&mut self) {
         self.pc += 1;
 
-        self.rom.io = self.acc.value();
+        self.rom.io = self.acc;
     }
 
     /// Write the contents of the accumulator into the previously selected half byte of read/write program memory (for use with the 4008/4009 only).
@@ -466,7 +466,7 @@ impl Intel4004 {
     fn rdr(&mut self) {
         self.pc += 1;
 
-        self.acc = u4::new(self.rom.io);
+        self.acc = self.rom.io;
     }
 
     /// Add the previous selected RAM main memory character to accumulator with carry.

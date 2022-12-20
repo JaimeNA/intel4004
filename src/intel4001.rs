@@ -4,18 +4,20 @@ use std::{
     fs::File,
 };
 
+use arbitrary_int::{u4};
+
 // Intel 4001(ROM)
 
 pub struct Intel4001 {
     pub rom: [u8; 256],      // 256 bytes.
-    pub io: u8,                  // 4 bits I/O port to route data in and out of the system.
+    pub io: u4,                  // 4 bits I/O port to route data in and out of the system.
 }
 
 impl Intel4001 {
     pub fn new() -> Self {
         Intel4001 {
             rom: [0x00; 256],
-            io: 0x00,
+            io: u4::new(0x0),
         }
     }
 

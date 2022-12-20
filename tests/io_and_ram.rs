@@ -2,6 +2,8 @@
 
 use intel4004_emu::intel4004::Intel4004;
 
+use arbitrary_int::{u4};
+
 #[test]
 fn test_wrm() {
     let mut cpu = Intel4004::new();
@@ -30,7 +32,7 @@ fn test_wrr() {
     cpu.set_acc(0x7);
 
     cpu.decode_op(0xE2);
-    assert_eq!(cpu.rom.io, 0x7);
+    assert_eq!(cpu.rom.io.value(), 0x7);
 }
 
 #[test]
@@ -105,10 +107,65 @@ fn test_rdm() {
 fn test_rdr() {
     let mut cpu = Intel4004::new();
 
-    cpu.set_ram_addrs(0x1E);
-    cpu.ram.ram[0x1E] = 0x4;
+    cpu.rom.io = u4::new(0x3);
 
     cpu.set_acc(0x7);
     cpu.decode_op(0xEA);
     assert_eq!(cpu.get_acc(), 0x3);
+}
+
+#[test]
+fn test_adm() {
+    let mut cpu = Intel4004::new();
+
+    cpu.set_ram_addrs(0x1E);
+    cpu.ram.ram[0x1E] = 0x4;
+
+    cpu.set_acc(0x7);
+    cpu.decode_op(0xEB);
+    assert_eq!(cpu.get_acc(), 0xB);
+}
+
+#[test]
+fn test_rd0() {
+    let mut cpu = Intel4004::new();
+    let ram_register = ((cpu.get_ram_addrs() & 0xF0) >> 4) & 0x03; 
+
+    cpu.ram.status[(ram_register * 4) as usize] = 0x7;
+
+    cpu.decode_op(0xEC);
+    assert_eq!(cpu.get_acc(), 0x7);
+}
+
+#[test]
+fn test_rd1() {
+    let mut cpu = Intel4004::new();
+    let ram_register = ((cpu.get_ram_addrs() & 0xF0) >> 4) & 0x03; 
+
+    cpu.ram.status[((ram_register * 4) + 1) as usize] = 0x7;
+
+    cpu.decode_op(0xED);
+    assert_eq!(cpu.get_acc(), 0x7);
+}
+
+#[test]
+fn test_rd2() {
+    let mut cpu = Intel4004::new();
+    let ram_register = ((cpu.get_ram_addrs() & 0xF0) >> 4) & 0x03; 
+
+    cpu.ram.status[((ram_register * 4) + 2) as usize] = 0x5;
+
+    cpu.decode_op(0xEE);
+    assert_eq!(cpu.get_acc(), 0x5);
+}
+
+#[test]
+fn test_rd3() {
+    let mut cpu = Intel4004::new();
+    let ram_register = ((cpu.get_ram_addrs() & 0xF0) >> 4) & 0x03; 
+
+    cpu.ram.status[((ram_register * 4) + 3) as usize] = 0x6;
+
+    cpu.decode_op(0xEF);
+    assert_eq!(cpu.get_acc(), 0x6);
 }
