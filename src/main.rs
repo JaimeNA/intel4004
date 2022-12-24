@@ -11,7 +11,7 @@ fn main() -> io::Result<()>{
 
     let mut i = 0;
 
-    while i < 5000 {
+    while i < 50 {
         cpu.clock();
         i += 1;
     }

@@ -93,6 +93,10 @@ impl Intel4004 {
         &self.index
     }
 
+    pub fn get_reg_pair(&self, rp: usize) -> u8 {
+        (self.index[rp].value() * 16) + self.index[rp + 1].value()
+    }
+
     pub fn get_stack(&self) -> &[u16; 3] {
         &self.stack.addrs
     }
@@ -119,6 +123,14 @@ impl Intel4004 {
 
     pub fn set_index(&mut self, index: [u4; 16]) {
         self.index = index;
+    }
+
+    pub fn set_reg_pair(&mut self, rp: usize, value: u8) {
+        let val1 = u4::new((value & 0xF0) / 16);
+        let val2 = u4::new(value & 0x0F);
+
+        self.index[rp] = val1;
+        self.index[rp + 1] = val2;
     }
 
     pub fn set_stack(&mut self, stack: [u16; 3]) {
@@ -244,7 +256,7 @@ impl Intel4004 {
 
         let rp = ((opa >> 1) * 2) as usize;
         let value = self.rom.fetch_u8(self.pc.into());
-        self.index[rp] = u4::new(value);
+        self.set_reg_pair(rp, value);
 
         self.pc += 1;
     }
