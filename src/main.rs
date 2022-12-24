@@ -7,7 +7,7 @@ fn main() -> io::Result<()>{
 
     let mut cpu = Intel4004::new();
 
-    cpu.rom.load_rom("rom/ram_test")?;
+    cpu.rom.load_rom("rom/RDn")?;
 
     let mut i = 0;
 

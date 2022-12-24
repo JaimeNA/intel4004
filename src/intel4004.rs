@@ -265,24 +265,22 @@ impl Intel4004 {
     fn src(&mut self, opa: u8) {
         self.pc += 1;
 
-        self.ram_addrs = opa >> 1;
+        self.ram_addrs = self.get_reg_pair((opa >> 1) as usize);
     }
 
     /// Fetch indirect from ROM. Send content of index register pair location 0 out as an address. Data fetched is placed in specied register pair.
     fn fin(&mut self, opa: u8) {
         self.pc += 1;
 
-        let rp = ((opa >> 1) * 2) as usize;
-        let val = self.rom.fetch_u8(self.index[0].value() as usize);
-        self.index[rp] = u4::new(val);
+        let rp = (opa >> 1) as usize;
+        let val = self.rom.fetch_u8(self.get_reg_pair(0) as usize);
+        self.set_reg_pair(rp, val);
     }
 
     /// Jump indirect. Send contents of register pair RRR out as an address at A1 and A2 time (ROM fetch cycles).
     fn jin(&mut self, opa: u8) {
-        self.pc += 1;
-
-        let rp = ((opa >> 1) * 2) as usize;
-        self.ram_addrs = self.index[rp].value();
+        let rp = (opa >> 1) as usize;
+        self.pc = self.get_reg_pair(rp) as u16;
     }
 
     /// Jump unconditional. To specified address.

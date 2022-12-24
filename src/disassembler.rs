@@ -8,6 +8,8 @@ use arbitrary_int::{u4};
 
 pub fn print_cpu_state(cpu: &Intel4004) {
 
+    println!("\n-- CPU --: ");
+
     // Program Counter
     println!("\nPC: {} ", cpu.get_pc());
 
@@ -44,7 +46,7 @@ pub fn print_stack(stack: &[u16; 3]) {
 pub fn print_rom(rom: &Intel4001) {
     let mut i = 0;
 
-    println!("\nROM: ");
+    println!("\n-- ROM --: ");
 
     println!("0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F");
 
@@ -63,7 +65,7 @@ pub fn print_rom(rom: &Intel4001) {
 pub fn print_ram(ram: &Intel4002) {
     let mut i = 0;
 
-    println!("\nRAM: ");
+    println!("\n-- RAM --: ");
 
     println!("\nMain memory: ");
     println!("0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F");
