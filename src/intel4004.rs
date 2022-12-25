@@ -121,8 +121,8 @@ impl Intel4004 {
         self.acc = u4::new(acc);
     }
 
-    pub fn set_index(&mut self, index: [u4; 16]) {
-        self.index = index;
+    pub fn set_index(&mut self, r: usize, value: u4) {
+        self.index[r] = value;
     }
 
     pub fn set_reg_pair(&mut self, rp: usize, value: u8) {
@@ -292,8 +292,9 @@ impl Intel4004 {
 
     /// Jump to subroutine of specified ROM address, save on address(Up 1 level in stack).
     fn jms(&mut self, opa: u8) {
+        self.pc += 1;
+        
         self.stack.push(self.pc);
-
         self.pc = ((opa & 0x0F) as u16 * 256) + (self.rom.fetch_u8(self.pc.into()) as u16);          // Join the last 4 bits of OPA with the next 8 bits.
     }
 
