@@ -347,7 +347,7 @@ impl Intel4004 {
         let reg_addr = (opa & 0x0F) as usize;
         let mut val = self.acc.value();
 
-        val -= self.index[reg_addr].value() + !self.carry as u8;
+        val += (!self.index[reg_addr]).value() + (!self.carry) as u8;
         self.carry = false;
 
         if val & 0xF0 != 0 {             
